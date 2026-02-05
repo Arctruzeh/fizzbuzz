@@ -498,9 +498,17 @@ main {
         height: 16px;
     }
 
+    /* Allow body scroll on mobile */
+    body {
+        overflow-y: auto;
+        height: auto;
+    }
+
     .container {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto 1fr;
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        overflow: visible;
         padding-top: 70px;
         /* Header space */
     }
@@ -552,13 +560,24 @@ main {
         z-index: 9999;
     }
 
+    main {
+        overflow: visible;
+        height: auto;
+        display: block;
+    }
+
     .workspace {
-        grid-template-columns: 1fr;
-        grid-template-rows: 1fr 1fr;
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        gap: 2rem;
+        padding-bottom: 2rem;
     }
 
     .panel {
-        min-height: 300px;
+        height: 500px;
+        /* Fixed height for panels on mobile so they have internal scroll */
+        min-height: 0;
     }
 
     /* Reposition Portfolio Link for mobile */
