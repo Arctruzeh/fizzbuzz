@@ -339,6 +339,7 @@ main {
     background: var(--bg-terminal);
     color: #4da6ff;
     /* Cyan-ish for code base */
+    white-space: pre-wrap;
 }
 
 .output-content {
