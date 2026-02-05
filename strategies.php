@@ -12,7 +12,7 @@ $strategies = [
         'complexity' => 'O(n)',
         'description' => 'The version deployed to ajlato.com. Clean, concatenation-based approach that builds the output string incrementally. Professional and interview-ready.',
         'code' => <<<'CODE'
-for ($x = 1; $x <= 10000; $x++) {
+for ($x = 1; $x <= 1000; $x++) {
     $y = '';
     if ($x % 3 == 0) { 
         $y .= 'Fizz';
@@ -32,7 +32,7 @@ CODE
         'complexity' => 'O(n)',
         'description' => 'The standard solution you would write in a basic interview. It checks divisibility using the modulo operator for 3, 5, and 15 (implied by the overlap). Simple, readable, and effective.',
         'code' => <<<'CODE'
-for ($i = 1; $i <= 10000; $i++) {
+for ($i = 1; $i <= 1000; $i++) {
     if ($i % 15 == 0) {
         echo "FizzBuzz<br>";
     } elseif ($i % 3 == 0) {
@@ -50,7 +50,7 @@ CODE
         'complexity' => 'O(n)',
         'description' => 'A slightly more elegant approach that avoids the explicit "15" check by building the string incrementally. This scales better if you need to add "7 -> Bazz" later.',
         'code' => <<<'CODE'
-for ($i = 1; $i <= 10000; $i++) {
+for ($i = 1; $i <= 1000; $i++) {
     $output = '';
     if ($i % 3 === 0) $output .= 'Fizz';
     if ($i % 5 === 0) $output .= 'Buzz';
@@ -67,7 +67,7 @@ CODE
         'code' => <<<'CODE'
 $c3 = 0;
 $c5 = 0;
-for ($i = 1; $i <= 10000; $i++) {
+for ($i = 1; $i <= 1000; $i++) {
     $c3++; 
     $c5++;
     $out = '';
@@ -84,7 +84,7 @@ CODE
         'complexity' => 'O(n)',
         'description' => 'A "Code Golf" style solution using nested ternary operators. While concise, it can be harder to read and maintain. Good for showing off, bad for teamwork.',
         'code' => <<<'CODE'
-for ($i = 1; $i <= 10000; $i++) 
+for ($i = 1; $i <= 1000; $i++) 
     echo ($i % 15 ? ($i % 5 ? ($i % 3 ? $i : 'Fizz') : 'Buzz') : 'FizzBuzz') . "<br>";
 CODE
     ],
@@ -98,7 +98,7 @@ $output = array_map(function($n) {
     $str .= ($n % 3 === 0) ? 'Fizz' : '';
     $str .= ($n % 5 === 0) ? 'Buzz' : '';
     return ($str ?: $n) . "<br>";
-}, range(1, 10000));
+}, range(1, 1000));
 
 echo implode('', $output);
 CODE
@@ -110,7 +110,7 @@ CODE
         'code' => <<<'CODE'
 $pattern = [1, 2, 'Fizz', 4, 'Buzz', 'Fizz', 7, 8, 'Fizz', 'Buzz', 11, 'Fizz', 13, 14, 'FizzBuzz'];
 
-for ($i = 1; $i <= 10000; $i++) {
+for ($i = 1; $i <= 1000; $i++) {
     $index = (($i - 1) % 15);
     $value = $pattern[$index];
     
@@ -128,7 +128,7 @@ CODE
         'complexity' => 'O(n)',
         'description' => 'A clever mathematical trick using str_repeat with boolean coercion. When $i % 3 == 0, the NOT operator makes it 1, repeating the string once. Compact but cryptic.',
         'code' => <<<'CODE'
-for ($i = 1; $i <= 10000; $i++) {
+for ($i = 1; $i <= 1000; $i++) {
     $output = str_repeat('Fizz', !($i % 3)) . str_repeat('Buzz', !($i % 5));
     echo ($output ?: $i) . "<br>";
 }
@@ -139,7 +139,7 @@ CODE
         'complexity' => 'O(n)',
         'description' => 'Uses a switch statement on $i % 15 to handle all cases. Shows an alternative control structure to if/else. Generally slower due to jump table overhead.',
         'code' => <<<'CODE'
-for ($i = 1; $i <= 10000; $i++) {
+for ($i = 1; $i <= 1000; $i++) {
     switch ($i % 15) {
         case 0:
             echo "FizzBuzz<br>";
@@ -165,7 +165,7 @@ CODE
         'complexity' => 'O(n)',
         'description' => 'Uses PHP 8\'s new match expression, which is stricter and more concise than switch. Returns a value directly without break statements. Modern and clean.',
         'code' => <<<'CODE'
-for ($i = 1; $i <= 10000; $i++) {
+for ($i = 1; $i <= 1000; $i++) {
     echo match ($i % 15) {
         0 => 'FizzBuzz',
         3, 6, 9, 12 => 'Fizz',
@@ -191,7 +191,7 @@ if (!function_exists('fizzBuzzGenerator')) {
     }
 }
 
-foreach (fizzBuzzGenerator(10000) as $line) {
+foreach (fizzBuzzGenerator(1000) as $line) {
     echo $line;
 }
 CODE
@@ -202,7 +202,7 @@ CODE
         'description' => 'Uses recursion instead of loops. Demonstrates functional programming concepts but has function call overhead. Stack depth limited, so not practical for large N.',
         'code' => <<<'CODE'
 if (!function_exists('fizzBuzzRecursive')) {
-    function fizzBuzzRecursive($n, $max = 10000) {
+    function fizzBuzzRecursive($n, $max = 1000) {
         if ($n > $max) return;
         
         $output = '';
@@ -231,11 +231,11 @@ for ($i = 1; $i <= 15; $i++) {
     $pattern .= ($out ?: $i) . "<br>";
 }
 
-// Repeat pattern 666 times (666 * 15 = 9990), then add remaining 10
-$output = str_repeat($pattern, 666);
+// Repeat pattern 66 times (66 * 15 = 990), then add remaining 10
+$output = str_repeat($pattern, 66);
 
-// Add the last 10 numbers (9991-10000)
-for ($i = 9991; $i <= 10000; $i++) {
+// Add the last 10 numbers (991-1000)
+for ($i = 991; $i <= 1000; $i++) {
     $out = '';
     if ($i % 3 === 0) $out .= 'Fizz';
     if ($i % 5 === 0) $out .= 'Buzz';
@@ -253,7 +253,7 @@ CODE
 $i = 1;
 
 loop_start:
-if ($i > 10000) goto loop_end;
+if ($i > 1000) goto loop_end;
 
 $output = '';
 if ($i % 3 === 0) $output .= 'Fizz';
@@ -271,7 +271,7 @@ CODE
         'complexity' => 'O(n)',
         'description' => 'Uses PHP 7\'s spaceship operator (<=>) creatively. More of a novelty than practical. Shows modern PHP features in an unconventional way.',
         'code' => <<<'CODE'
-for ($i = 1; $i <= 10000; $i++) {
+for ($i = 1; $i <= 1000; $i++) {
     $fizz = ($i % 3 <=> 0) === 0;
     $buzz = ($i % 5 <=> 0) === 0;
     
@@ -288,7 +288,7 @@ CODE
         'complexity' => 'O(n)',
         'description' => 'Uses array_fill() and array_walk() instead of array_map. Different functional approach that modifies array in-place. Interesting comparison to the array_map version.',
         'code' => <<<'CODE'
-$numbers = range(1, 10000);
+$numbers = range(1, 1000);
 $output = [];
 
 array_walk($numbers, function($n) use (&$output) {
@@ -306,7 +306,7 @@ CODE
         'complexity' => 'O(n)',
         'description' => 'Avoids modulo by using division and floor comparison. Tests if floor($i/3) changes between consecutive numbers. Theoretical alternative but slower due to floating-point operations.',
         'code' => <<<'CODE'
-for ($i = 1; $i <= 10000; $i++) {
+for ($i = 1; $i <= 1000; $i++) {
     $output = '';
     
     // Check if we crossed a multiple of 3

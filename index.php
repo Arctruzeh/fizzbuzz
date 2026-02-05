@@ -16,27 +16,27 @@ require_once 'api.php';
     <title>Ultimate FizzBuzz Demo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;500;700&family=Share+Tech+Mono&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=VT323&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<!-- Mobile menu toggle -->
-<button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-    </svg>
-</button>
+<!-- Mobile Navbar (Visible only on mobile) -->
+<header class="mobile-navbar">
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+        </svg>
+    </button>
+    <div class="navbar-brand">
+        <h1>FizzBuzz<span style="color:var(--accent-primary)">Lab</span></h1>
+    </div>
+</header>
 
 <!-- Mobile backdrop -->
 <div class="mobile-backdrop" onclick="toggleMobileMenu()"></div>
 
-<header>
-    <div style="display: flex; align-items: baseline;">
-        <h1>FizzBuzz<span style="color:var(--accent-primary)">Lab</span></h1>
-        <span class="badge">PHP Sandbox</span>
-    </div>
-</header>
+
 
 <div class="container">
     <aside>

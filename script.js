@@ -164,20 +164,20 @@ async function benchmarkAll() {
                     return n + (s[(v - 20) % 10] || s[v] || s[0]);
                 };
 
-                timeEl.innerHTML = `${result.time}ms (avg of ${result.runs}) <span class="v-rank">${getOrdinal(result.rank)}</span>`;
+                timeEl.innerHTML = `<span class="stat-avg">${result.time}ms</span> (avg of ${result.runs}) <span class="v-rank">${getOrdinal(result.rank)}</span>`;
 
                 // Add min/max info
                 const variance = result.max - result.min;
                 const minMaxEl = document.createElement('span');
                 minMaxEl.className = 'v-minmax';
-                minMaxEl.innerHTML = `min: ${result.min}ms | max: ${result.max}ms | var: ${variance.toFixed(3)}ms`;
+                minMaxEl.innerHTML = `min: <span class="stat-min">${result.min}ms</span> | max: <span class="stat-max">${result.max}ms</span> | var: <span class="stat-variance">${variance.toFixed(3)}ms</span>`;
                 timeEl.appendChild(minMaxEl);
 
                 // Add overall ranking if available
                 if (result.overallRank) {
                     const overallEl = document.createElement('span');
                     overallEl.className = 'v-overall';
-                    overallEl.innerHTML = `Overall: ${result.overallRank} (score: ${result.overallScore})`;
+                    overallEl.innerHTML = `Overall: <span class="stat-overall">${result.overallRank} (score: ${result.overallScore})</span>`;
                     timeEl.appendChild(overallEl);
                 }
 
@@ -239,6 +239,18 @@ function sortResults(sortBy) {
     document.querySelectorAll('.sort-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.sort === sortBy);
     });
+
+    // Remove existing highlights
+    document.querySelectorAll('.stat-highlight').forEach(el => el.classList.remove('stat-highlight'));
+
+    // Add new highlight
+    const highlightClass = 'stat-' + sortBy;
+    if (sortBy === 'avg') { // map 'avg' sort to '.stat-avg' class
+        document.querySelectorAll('.stat-avg').forEach(el => el.classList.add('stat-highlight'));
+    } else {
+        document.querySelectorAll('.' + highlightClass).forEach(el => el.classList.add('stat-highlight'));
+    }
+
 
     const versionList = document.getElementById('versionList');
     const items = Array.from(versionList.children);
@@ -318,21 +330,29 @@ function calculateOverallRankings(results) {
         const badge = document.createElement('span');
         badge.className = 'v-winner-badge';
         badge.textContent = 'Overall Winner';
+
+        // Add a space before the badge if it doesn't exist
+        if (winnerNameEl.lastChild.nodeType === Node.TEXT_NODE) {
+            // ensure space
+        } else {
+            winnerNameEl.appendChild(document.createTextNode(' '));
+        }
+
         winnerNameEl.appendChild(badge);
     }
 
     // Update all items with overall ranking info
     for (const [key, result] of Object.entries(results)) {
         const timeEl = document.getElementById('time-' + key);
-        const existingOverall = timeEl.querySelector('.v-overall');
-        if (existingOverall) {
-            existingOverall.innerHTML = `Overall: ${result.overallRank} (score: ${result.overallScore})`;
-        } else {
-            const overallEl = document.createElement('span');
+        let overallEl = timeEl.querySelector('.v-overall');
+
+        if (!overallEl) {
+            overallEl = document.createElement('span');
             overallEl.className = 'v-overall';
-            overallEl.innerHTML = `Overall: ${result.overallRank} (score: ${result.overallScore})`;
             timeEl.appendChild(overallEl);
         }
+
+        overallEl.innerHTML = `Overall: <span class="stat-overall">${result.overallRank} (score: ${result.overallScore})</span>`;
     }
 }
 
