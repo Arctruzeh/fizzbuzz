@@ -467,8 +467,37 @@ main {
     color: var(--hazard-yellow);
 }
 
+/* Mobile Strategy Navigation Default (Hidden) */
+.mobile-strategy-nav,
+.mobile-benchmark-btn {
+    display: none;
+}
+
 /* Mobile Adjustments */
 @media (max-width: 900px) {
+    /* ... existing media query content ... */
+
+    /* ADDED STYLES FOR BENCHMARK BTN */
+    .mobile-benchmark-btn {
+        display: flex;
+        width: 100%;
+        margin-bottom: 1rem;
+        background: transparent;
+        border: 1px dashed var(--hazard-yellow);
+        color: var(--hazard-yellow);
+        font-size: 0.9rem;
+    }
+
+    .mobile-benchmark-btn:active {
+        background: var(--hazard-yellow);
+        color: #000;
+    }
+
+    .mobile-benchmark-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+
     .container {
         grid-template-columns: 1fr;
         grid-template-rows: auto 1fr;
@@ -540,5 +569,53 @@ main {
         padding: 5px 10px !important;
         background: var(--rust-dark) !important;
         border: 1px solid var(--text-dim) !important;
+    }
+
+    /* Mobile Strategy Navigation */
+    .mobile-strategy-nav {
+        display: flex;
+        gap: 1rem;
+        margin: 0.5rem 0 1rem 0;
+    }
+
+    .nav-btn {
+        flex: 1;
+        background: var(--bg-panel);
+        border: 1px solid var(--text-dim);
+        color: var(--text-steel);
+        padding: 0.75rem;
+        font-family: var(--font-header);
+        text-transform: uppercase;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .nav-btn:active {
+        background: var(--text-dim);
+        color: #fff;
+    }
+
+    .nav-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    /* Make Run Button HUUUUGE on Mobile */
+    .run-btn {
+        width: 100%;
+        padding: 1rem;
+        font-size: 1.5rem;
+        margin-top: 0.5rem;
+        background: var(--rust-dark);
+        border-color: #5d4037;
+        color: #fff;
+    }
+
+    .run-btn:active {
+        background: #3e2723;
     }
 }

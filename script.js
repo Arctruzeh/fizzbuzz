@@ -135,6 +135,7 @@ async function benchmarkAll() {
     // UI State
     btn.disabled = true;
     btn.innerHTML = 'Running (1000x each)...';
+    document.getElementById('outputDisplay').innerHTML = '<span style="color: var(--hazard-yellow)">Initializing Benchmark Protocol...</span><br>Running 1000 iterations per strategy.';
 
     try {
         const formData = new FormData();
@@ -220,6 +221,17 @@ async function benchmarkAll() {
 
             // Apply the currently active sort method
             sortResults(activeSortMethod);
+
+            // If on mobile, open the sidebar to show results immediately
+            if (window.innerWidth <= 900) {
+                const aside = document.querySelector('aside');
+                if (!aside.classList.contains('mobile-open')) {
+                    toggleMobileMenu();
+                }
+                document.getElementById('outputDisplay').innerHTML = '<span style="color: var(--text-phosphor)">Benchmark Complete!</span><br>Results are now visible in the menu.';
+            } else {
+                document.getElementById('outputDisplay').innerHTML = '<span style="color: var(--text-phosphor)">Benchmark Complete!</span><br>See sidebar for rankings.';
+            }
         }
     } catch (e) {
         alert('Benchmark failed: ' + e.message);
@@ -366,4 +378,37 @@ function toggleMobileMenu() {
 
     aside.classList.toggle('mobile-open');
     backdrop.classList.toggle('active');
+}
+
+// Mobile Strategy Navigation Logic
+function getStrategyKeys() {
+    // Use the visual order of items in the sidebar
+    const items = Array.from(document.querySelectorAll('.version-item'));
+    return items.map(item => item.id.replace('item-', ''));
+}
+
+function nextStrategy() {
+    const keys = getStrategyKeys();
+    const currentIndex = keys.indexOf(currentVersion);
+    if (currentIndex === -1) return; // Should not happen
+
+    const nextIndex = (currentIndex + 1) % keys.length;
+    selectVersion(keys[nextIndex]);
+
+    // Smooth scroll to top of code for better mobile UX
+    const codePanel = document.getElementById('codeDisplay');
+    if (codePanel) codePanel.scrollTop = 0;
+}
+
+function prevStrategy() {
+    const keys = getStrategyKeys();
+    const currentIndex = keys.indexOf(currentVersion);
+    if (currentIndex === -1) return;
+
+    const prevIndex = (currentIndex - 1 + keys.length) % keys.length;
+    selectVersion(keys[prevIndex]);
+
+    // Smooth scroll to top of code
+    const codePanel = document.getElementById('codeDisplay');
+    if (codePanel) codePanel.scrollTop = 0;
 }
