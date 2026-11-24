@@ -1,12 +1,15 @@
 <?php
 /**
  * FizzBuzz Benchmark Application
- * Main entry point - handles both API requests and page rendering
+ * Main entry point - renders the FizzBuzz Benchmark UI
  */
 
 // Include dependencies
-require_once 'strategies.php';
-require_once 'api.php';
+require_once __DIR__ . '/vendor/autoload.php';
+
+use FizzBuzz\Strategies;
+
+$strategies = Strategies::getPublicData();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -18,7 +21,7 @@ require_once 'api.php';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;500;700&family=Share+Tech+Mono&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=VT323&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=VT323&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -34,21 +37,21 @@ require_once 'api.php';
             </svg>
         </button>
         <div class="navbar-brand">
-            <h1>FizzBuzz<span style="color:var(--accent-primary)">Lab</span></h1>
+            <h1>FizzBuzz<span style="color:var(--text-phosphor)">Lab</span></h1>
         </div>
     </header>
 
     <!-- Mobile backdrop -->
-    <div class="mobile-backdrop" onclick="toggleMobileMenu()"></div>
+    <button type="button" class="mobile-backdrop" aria-label="Close menu" onclick="toggleMobileMenu()"></button>
 
 
 
     <div class="container">
         <aside>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">
+                <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-dim); font-weight: 700;">
                     Select Version</div>
-                <button class="run-btn benchmark-btn" onclick="benchmarkAll()"
+                <button class="run-btn benchmark-btn" onclick="benchmarkAll(event)"
                     style="padding: 0.35rem 0.65rem; font-size: 0.75rem;"
                     title="Run all versions and compare performance">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
@@ -70,10 +73,12 @@ require_once 'api.php';
 
             <ul class="version-list" id="versionList">
                 <?php foreach ($strategies as $key => $data): ?>
-                    <li class="version-item" onclick="selectVersion('<?= $key ?>')" id="item-<?= $key ?>">
-                        <span class="v-name"><?= htmlspecialchars($data['name']) ?></span>
-                        <span class="v-desc"><?= htmlspecialchars($data['description']) ?></span>
-                        <span class="v-time" id="time-<?= $key ?>"></span>
+                    <li data-key="<?= htmlspecialchars($key) ?>">
+                        <button type="button" class="version-item" onclick="selectVersion('<?= $key ?>')" id="item-<?= $key ?>">
+                            <span class="v-name"><?= htmlspecialchars($data['name']) ?></span>
+                            <span class="v-desc"><?= htmlspecialchars($data['description']) ?></span>
+                            <span class="v-time" id="time-<?= $key ?>"></span>
+                        </button>
                     </li>
                 <?php endforeach; ?>
             </ul>
@@ -100,7 +105,7 @@ require_once 'api.php';
                     </button>
                 </div>
 
-                <button class="nav-btn mobile-benchmark-btn" onclick="benchmarkAll()">
+                <button class="nav-btn mobile-benchmark-btn" onclick="benchmarkAll(event)">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                         stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round"
@@ -128,9 +133,9 @@ require_once 'api.php';
                         <div style="display: flex; align-items: center; gap: 1rem;">
                             <span class="panel-title">Terminal Output</span>
                             <span id="executionTime"
-                                style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;"></span>
+                                style="font-size: 0.75rem; color: var(--text-dim); font-weight: 400;"></span>
                         </div>
-                        <button class="run-btn" onclick="runCode()">
+                        <button class="run-btn" id="runCodeBtn" onclick="runCode()">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                                 stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round"

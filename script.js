@@ -40,34 +40,34 @@ function selectVersion(key) {
 // Robust Syntax Highlighting Helper
 function highlightCode(code) {
     // Escaping first to prevent HTML injection from the code itself
-    code = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    code = code.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
     const placeholders = { strings: [], comments: [] };
 
     // 1. Extract Strings (replace with placeholder)
-    code = code.replace(/(['"])(.*?)\1/g, function (match) {
+    code = code.replaceAll(/(['"])(.*?)\1/g, function (match) {
         placeholders.strings.push(match);
         return '___STR' + (placeholders.strings.length - 1) + '___';
     });
 
     // 2. Extract Comments (replace with placeholder)
     // Note: We extracted strings first, so "//" inside a string won't trigger this.
-    code = code.replace(/(\/\/.*)/g, function (match) {
+    code = code.replaceAll(/(\/\/.*)/g, function (match) {
         placeholders.comments.push(match);
         return '___COM' + (placeholders.comments.length - 1) + '___';
     });
 
     // 3. Highlight Keywords & Numbers (now safe from strings/comments)
-    code = code.replace(/\b(for|if|else|echo|return|function|array_map)\b/g, '<span class="kwd">$1</span>');
-    code = code.replace(/\b(\d+)\b/g, '<span class="num">$1</span>');
+    code = code.replaceAll(/\b(for|foreach|as|if|elseif|else|switch|case|break|default|match|echo|return|function|use|yield|goto|array_map|array_walk|range|implode|str_repeat|floor|is_int|defined|define|function_exists)\b/g, '<span class="kwd">$1</span>');
+    code = code.replaceAll(/\b(\d+)\b/g, '<span class="num">$1</span>');
 
     // 4. Restore Comments
-    code = code.replace(/___COM(\d+)___/g, function (match, id) {
+    code = code.replaceAll(/___COM(\d+)___/g, function (match, id) {
         return '<span class="com">' + placeholders.comments[id] + '</span>';
     });
 
     // 5. Restore Strings
-    code = code.replace(/___STR(\d+)___/g, function (match, id) {
+    code = code.replaceAll(/___STR(\d+)___/g, function (match, id) {
         return '<span class="str">' + placeholders.strings[id] + '</span>';
     });
 
@@ -77,11 +77,12 @@ function highlightCode(code) {
 async function runCode() {
     if (!currentVersion) return;
 
-    const btn = document.querySelector('.run-btn');
+    const btn = document.getElementById('runCodeBtn');
     const output = document.getElementById('outputDisplay');
     const timeDisplay = document.getElementById('executionTime');
 
     // UI State
+    btn.disabled = true;
     btn.innerHTML = 'Running...';
     btn.classList.add('loading');
     output.innerText = 'Calculating...';
@@ -105,32 +106,34 @@ async function runCode() {
 
         const result = await response.json();
 
-        if (result.error) {
-            output.innerText = "Error: " + result.error;
+        if (!response.ok || result.error) {
+            output.innerText = "Error: " + (result.error || `HTTP ${response.status}`);
         } else {
             output.innerHTML = result.output;
 
             // Display timing information
-            timeDisplay.innerHTML = `Exec: ${result.executionTime}ms <span style="color: var(--border-color);">|</span> Total: ${totalTime.toFixed(2)}ms`;
+            timeDisplay.innerHTML = `Exec: ${result.executionTime}ms <span style="color: var(--text-dim);">|</span> Total: ${totalTime.toFixed(2)}ms`;
         }
 
     } catch (e) {
         output.innerText = "Error executing code: " + e.message;
     } finally {
+        btn.disabled = false;
         btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" /></svg> Run';
         btn.classList.remove('loading');
     }
 }
 
-async function benchmarkAll() {
+async function benchmarkAll(event) {
     const btn = event.target.closest('button');
     const originalHTML = btn.innerHTML;
 
-    // Clear previous times and classes
+    // Clear previous times, classes, and winner badges
     document.querySelectorAll('.v-time').forEach(el => {
         el.innerHTML = '';
         el.classList.remove('fastest', 'slowest');
     });
+    document.querySelectorAll('.v-winner-badge').forEach(el => el.remove());
 
     // UI State
     btn.disabled = true;
@@ -148,96 +151,89 @@ async function benchmarkAll() {
 
         const data = await response.json();
 
+        if (!response.ok || data.error) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+
         if (data.results) {
-            // Find fastest and slowest
-            const times = Object.values(data.results).map(r => r.time);
-            const fastest = Math.min(...times);
-            const slowest = Math.max(...times);
-
-            // Display results with rankings
-            for (const [key, result] of Object.entries(data.results)) {
-                const timeEl = document.getElementById('time-' + key);
-
-                // Get ordinal suffix (1st, 2nd, 3rd, etc.)
-                const getOrdinal = (n) => {
-                    const s = ['th', 'st', 'nd', 'rd'];
-                    const v = n % 100;
-                    return n + (s[(v - 20) % 10] || s[v] || s[0]);
-                };
-
-                timeEl.innerHTML = `<span class="stat-avg">${result.time}ms</span> (avg of ${result.runs}) <span class="v-rank">${getOrdinal(result.rank)}</span>`;
-
-                // Add min/max info
-                const variance = result.max - result.min;
-                const minMaxEl = document.createElement('span');
-                minMaxEl.className = 'v-minmax';
-                minMaxEl.innerHTML = `min: <span class="stat-min">${result.min}ms</span> | max: <span class="stat-max">${result.max}ms</span> | var: <span class="stat-variance">${variance.toFixed(3)}ms</span>`;
-                timeEl.appendChild(minMaxEl);
-
-                // Add overall ranking if available
-                if (result.overallRank) {
-                    const overallEl = document.createElement('span');
-                    overallEl.className = 'v-overall';
-                    overallEl.innerHTML = `Overall: <span class="stat-overall">${result.overallRank} (score: ${result.overallScore})</span>`;
-                    timeEl.appendChild(overallEl);
-                }
-
-                // Highlight fastest/slowest
-                if (result.time === fastest && fastest !== slowest) {
-                    timeEl.classList.add('fastest');
-                } else if (result.time === slowest && fastest !== slowest) {
-                    timeEl.classList.add('slowest');
-                }
-            }
-
-            // Sort the sidebar items by rank
-            const versionList = document.getElementById('versionList');
-            const items = Array.from(versionList.children);
-
-            // Create a map of key to rank
-            const rankMap = {};
-            for (const [key, result] of Object.entries(data.results)) {
-                rankMap[key] = result.rank;
-            }
-
-            // Sort items by rank
-            items.sort((a, b) => {
-                const keyA = a.id.replace('item-', '');
-                const keyB = b.id.replace('item-', '');
-                return (rankMap[keyA] || 999) - (rankMap[keyB] || 999);
-            });
-
-            // Re-append in sorted order
-            items.forEach(item => versionList.appendChild(item));
-
-            // Calculate overall rankings
-            calculateOverallRankings(data.results);
-
-            // Store results for re-sorting
-            benchmarkResults = data.results;
-
-            // Show sort controls
-            document.getElementById('sortControls').style.display = 'flex';
-
-            // Apply the currently active sort method
-            sortResults(activeSortMethod);
-
-            // If on mobile, open the sidebar to show results immediately
-            if (window.innerWidth <= 900) {
-                const aside = document.querySelector('aside');
-                if (!aside.classList.contains('mobile-open')) {
-                    toggleMobileMenu();
-                }
-                document.getElementById('outputDisplay').innerHTML = '<span style="color: var(--text-phosphor)">Benchmark Complete!</span><br>Results are now visible in the menu.';
-            } else {
-                document.getElementById('outputDisplay').innerHTML = '<span style="color: var(--text-phosphor)">Benchmark Complete!</span><br>See sidebar for rankings.';
-            }
+            processBenchmarkResults(data.results);
         }
     } catch (e) {
-        alert('Benchmark failed: ' + e.message);
+        const output = document.getElementById('outputDisplay');
+        output.innerHTML = '';
+        const errSpan = document.createElement('span');
+        errSpan.style.color = '#ff5252';
+        errSpan.textContent = 'Benchmark failed: ' + e.message;
+        output.appendChild(errSpan);
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalHTML;
+    }
+}
+
+function processBenchmarkResults(results) {
+    // Find fastest and slowest
+    const times = Object.values(results).map(r => r.time);
+    const fastest = Math.min(...times);
+    const slowest = Math.max(...times);
+
+    // Display results with rankings
+    for (const [key, result] of Object.entries(results)) {
+        const timeEl = document.getElementById('time-' + key);
+
+        // Get ordinal suffix (1st, 2nd, 3rd, etc.)
+        const getOrdinal = (n) => {
+            const s = ['th', 'st', 'nd', 'rd'];
+            const v = n % 100;
+            return n + (s[(v - 20) % 10] || s[v] || s[0]);
+        };
+
+        timeEl.innerHTML = `<span class="stat-avg">${result.time}ms</span> (avg of ${result.runs}) <span class="v-rank">${getOrdinal(result.rank)}</span>`;
+
+        // Add min/max info
+        const variance = result.max - result.min;
+        const minMaxEl = document.createElement('span');
+        minMaxEl.className = 'v-minmax';
+        minMaxEl.innerHTML = `min: <span class="stat-min">${result.min}ms</span> | max: <span class="stat-max">${result.max}ms</span> | var: <span class="stat-variance">${variance.toFixed(3)}ms</span>`;
+        timeEl.appendChild(minMaxEl);
+
+        // Add overall ranking if available
+        if (result.overallRank) {
+            const overallEl = document.createElement('span');
+            overallEl.className = 'v-overall';
+            overallEl.innerHTML = `Overall: <span class="stat-overall">${result.overallRank} (score: ${result.overallScore})</span>`;
+            timeEl.appendChild(overallEl);
+        }
+
+        // Highlight fastest/slowest
+        if (result.time === fastest && fastest !== slowest) {
+            timeEl.classList.add('fastest');
+        } else if (result.time === slowest && fastest !== slowest) {
+            timeEl.classList.add('slowest');
+        }
+    }
+
+    // Calculate overall rankings
+    calculateOverallRankings(results);
+
+    // Store results for re-sorting
+    benchmarkResults = results;
+
+    // Show sort controls
+    document.getElementById('sortControls').style.display = 'flex';
+
+    // Apply the currently active sort method
+    sortResults(activeSortMethod);
+
+    // If on mobile, open the sidebar to show results immediately
+    if (window.innerWidth <= 900) {
+        const aside = document.querySelector('aside');
+        if (!aside.classList.contains('mobile-open')) {
+            toggleMobileMenu();
+        }
+        document.getElementById('outputDisplay').innerHTML = '<span style="color: var(--text-phosphor)">Benchmark Complete!</span><br>Results are now visible in the menu.';
+    } else {
+        document.getElementById('outputDisplay').innerHTML = '<span style="color: var(--text-phosphor)">Benchmark Complete!</span><br>See sidebar for rankings.';
     }
 }
 
@@ -276,16 +272,16 @@ function sortResults(sortBy) {
             min: result.min,
             max: result.max,
             variance: variance,
-            overall: result.overallScore || 999
+            overall: result.overallScore ?? 999
         };
     }
 
     // Sort items
     items.sort((a, b) => {
-        const keyA = a.id.replace('item-', '');
-        const keyB = b.id.replace('item-', '');
-        const valA = sortMap[keyA]?.[sortBy] || 999;
-        const valB = sortMap[keyB]?.[sortBy] || 999;
+        const keyA = a.dataset.key;
+        const keyB = b.dataset.key;
+        const valA = sortMap[keyA]?.[sortBy] ?? 999;
+        const valB = sortMap[keyB]?.[sortBy] ?? 999;
         return valA - valB;
     });
 
@@ -299,8 +295,8 @@ function calculateOverallRankings(results) {
     const rankings = {};
 
     // Calculate variance and add to results
-    for (const [key, result] of Object.entries(results)) {
-        result.variance = result.max - result.min;
+    for (const result of Object.values(results)) {
+        result.variance = result.max - result.min; // Calculate variance
     }
 
     // Rank each metric (lower is better for all)
@@ -333,7 +329,7 @@ function calculateOverallRankings(results) {
     // Display overall winner
     const winner = overallSorted[0];
     const winnerKey = winner[0];
-    const winnerName = results[winnerKey].name;
+    // winnerName variable removed as it was unused
 
     // Add winner badge to the winner's name
     const winnerItem = document.getElementById('item-' + winnerKey);
@@ -343,10 +339,8 @@ function calculateOverallRankings(results) {
         badge.className = 'v-winner-badge';
         badge.textContent = 'Overall Winner';
 
-        // Add a space before the badge if it doesn't exist
-        if (winnerNameEl.lastChild.nodeType === Node.TEXT_NODE) {
-            // ensure space
-        } else {
+        // Ensure a single space before the badge
+        if (!winnerNameEl.lastChild || winnerNameEl.lastChild.nodeType !== Node.TEXT_NODE || !winnerNameEl.lastChild.textContent.endsWith(' ')) {
             winnerNameEl.appendChild(document.createTextNode(' '));
         }
 
@@ -411,4 +405,14 @@ function prevStrategy() {
     // Smooth scroll to top of code
     const codePanel = document.getElementById('codeDisplay');
     if (codePanel) codePanel.scrollTop = 0;
+}
+
+// Auto-open menu on mobile load so users immediately see the full list & benchmark options
+if (window.innerWidth <= 900) {
+    setTimeout(() => {
+        const aside = document.querySelector('aside');
+        if (aside && !aside.classList.contains('mobile-open')) {
+            toggleMobileMenu();
+        }
+    }, 500); // Slight delay for visual entrance effect
 }

@@ -1,0 +1,13 @@
+{
+    "name": "ajlato/fizzbuzz",
+    "description": "FizzBuzz Benchmark Application",
+    "type": "project",
+    "autoload": {
+        "psr-4": {
+            "FizzBuzz\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=8.0"
+    }
+}
