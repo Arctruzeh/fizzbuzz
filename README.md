@@ -11,10 +11,31 @@ A high-fidelity "Industrial Assemblage" themed benchmark for FizzBuzz implementa
 * **Visual Feedback**: Active metrics, fastest/slowest timings, and overall winners are highlighted in "Phosphor Green" for quick analysis.
 * **17 PHP Strategies**: Original Portfolio Version, Classic Modulo, Concatenation, Counter Method, One-Liner Ternary, Functional (`array_map`), Lookup Table, String Multiplication, Switch Statement, PHP 8+ Match Expression, Generator, Recursive, Pre-computed String, Goto Loop, Spaceship Operator, Range + `array_walk`, and Modulo-Free Division.
 
+## Architecture
+
+```text
+fizzbuzz/
+├── src/
+│   ├── Strategy/          # StrategyInterface + 17 individual strategy classes
+│   ├── Benchmark/         # BenchmarkStatistics, BenchmarkRunner, FileLock
+│   ├── Http/              # ApiHandler for run & benchmark requests
+│   └── Strategies.php     # Thin registry facade
+├── js/
+│   ├── app.js             # Stateful UI controller & bootstrap
+│   ├── apiClient.js       # Fetch client for api.php
+│   ├── benchmarkView.js   # Sidebar rendering, badges, and sorting
+│   └── highlighter.js     # Single-pass PHP syntax highlighter & ordinals
+├── tests/
+│   ├── verify.php         # Strategy parity, statistics, API handler & HTTP checks
+│   └── frontend.test.mjs  # Native ES module unit/DOM tests
+├── index.php              # Benchmark UI entrypoint
+└── api.php                # Thin JSON API entrypoint
+```
+
 ## Tech Stack
 
-* **Backend**: PHP 8.0+ (PSR-4 autoloaded strategies & JSON API)
-* **Frontend**: HTML5, Vanilla JavaScript, Vanilla CSS (Custom Design System)
+* **Backend**: PHP 8.0+ (PSR-4 modular Strategy pattern, BenchmarkRunner & JSON API)
+* **Frontend**: HTML5, Vanilla ES Modules (`js/`), Vanilla CSS (Custom Design System)
 * **Design**: Custom "Industrial" theme using CSS gradients, box-shadows, and Google Fonts (`VT323`, `Space Mono`, `Share Tech Mono`).
 
 ## Local Development

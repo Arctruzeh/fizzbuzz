@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+use FizzBuzz\Benchmark\BenchmarkRunner;
+use FizzBuzz\Benchmark\BenchmarkStatistics;
+use FizzBuzz\Benchmark\FileLock;
+use FizzBuzz\Http\ApiHandler;
 use FizzBuzz\Strategies;
+use FizzBuzz\Strategy\StrategyInterface;
 
 function assertTrue(bool $condition, string $message): void
 {
@@ -54,6 +59,38 @@ $expectedKeys = [
 $strategies = Strategies::getAll();
 assertTrue(count($strategies) === 17, 'Expected 17 strategies, got ' . count($strategies));
 assertTrue(array_keys($strategies) === $expectedKeys, 'Strategy keys mismatch');
+
+$registry = Strategies::registry();
+assertTrue(count($registry) === 17, 'Expected 17 StrategyInterface instances');
+foreach ($registry as $key => $instance) {
+    assertTrue($instance instanceof StrategyInterface, "{$key} does not implement StrategyInterface");
+    assertTrue($instance->key() === $key, "Registry key mismatch for {$key}");
+}
+
+// Unit checks for BenchmarkStatistics
+$summary = BenchmarkStatistics::summarize([10.0, 2.0, 4.0, 6.0]);
+assertTrue(abs($summary['avg'] - 5.5) < 1e-9, 'BenchmarkStatistics avg mismatch');
+assertTrue(abs($summary['median'] - 5.0) < 1e-9, 'BenchmarkStatistics even median mismatch');
+assertTrue($summary['min'] === 2.0 && $summary['max'] === 10.0, 'BenchmarkStatistics min/max mismatch');
+assertTrue($summary['stddev'] > 0.0, 'BenchmarkStatistics stddev expected positive');
+
+$ranking = BenchmarkStatistics::rank([
+    'a' => ['avg' => 1.0, 'median' => 1.0, 'p95' => 1.0, 'min' => 1.0, 'max' => 1.0, 'stddev' => 0.1],
+    'b' => ['avg' => 1.0, 'median' => 1.0, 'p95' => 1.0, 'min' => 1.0, 'max' => 1.0, 'stddev' => 0.1],
+    'c' => ['avg' => 2.0, 'median' => 2.0, 'p95' => 2.0, 'min' => 2.0, 'max' => 2.0, 'stddev' => 0.2],
+]);
+assertTrue($ranking['primaryRanks']['a'] === 1 && $ranking['primaryRanks']['b'] === 1, 'Expected tie rank 1 for a and b');
+assertTrue($ranking['primaryRanks']['c'] === 3, 'Expected competition rank 3 after tie for c');
+assertTrue($ranking['overallScores']['a'] === 5 && $ranking['overallRanks']['a'] === 1, 'Expected overallScore 5, rank 1 for a');
+assertTrue($ranking['overallRanks']['c'] === 3, 'Expected overallRank 3 for c');
+
+// Unit checks for ApiHandler
+$unitHandler = new ApiHandler(new BenchmarkRunner(), new FileLock(sys_get_temp_dir() . '/fizzbuzz_unit_test.lock'));
+assertTrue($unitHandler->handle('GET', [])['statusCode'] === 405, 'ApiHandler should return 405 for GET');
+assertTrue($unitHandler->handle('POST', ['action' => 'run', 'limit' => '999'])['statusCode'] === 400, 'ApiHandler should reject invalid limit');
+assertTrue($unitHandler->handle('POST', ['action' => 'run', 'version' => 'missing', 'limit' => '100'])['statusCode'] === 400, 'ApiHandler should reject unknown version');
+assertTrue($unitHandler->handle('POST', ['action' => 'nope', 'limit' => '100'])['statusCode'] === 400, 'ApiHandler should reject unknown action');
+echo "PASS: Strategy registry, BenchmarkStatistics, and ApiHandler unit checks passed.\n";
 
 foreach ($strategies as $key => $strategy) {
     assertTrue(is_string($strategy['name']) && $strategy['name'] !== '', "Missing name for {$key}");

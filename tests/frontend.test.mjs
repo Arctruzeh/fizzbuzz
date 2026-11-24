@@ -1,14 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { getOrdinal, highlightCode } from '../js/highlighter.js';
+import { createApp } from '../js/app.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
-const scriptSource = fs.readFileSync(path.join(projectRoot, 'script.js'), 'utf8');
 
 const STRATEGIES_DATA = JSON.parse(
     execFileSync(
@@ -128,8 +127,8 @@ class MockElement {
     }
 
     removeChild(node) {
-        this.childNodes = this.childNodes.filter(n => n !== node);
-        this.children = this.children.filter(n => n !== node);
+        this.childNodes = this.childNodes.filter((n) => n !== node);
+        this.children = this.children.filter((n) => n !== node);
         node.parentNode = null;
         return node;
     }
@@ -141,7 +140,7 @@ class MockElement {
     }
 
     get textContent() {
-        return this.childNodes.map(n => n.textContent).join('');
+        return this.childNodes.map((n) => n.textContent).join('');
     }
 
     set textContent(val) {
@@ -156,7 +155,7 @@ class MockElement {
     get innerHTML() {
         if (this._innerHTML) return this._innerHTML;
         return this.childNodes
-            .map(n => (n.nodeType === 3 ? n.textContent : `<${n.tagName.toLowerCase()} class="${n.className}">${n.innerHTML}</${n.tagName.toLowerCase()}>`))
+            .map((n) => (n.nodeType === 3 ? n.textContent : `<${n.tagName.toLowerCase()} class="${n.className}">${n.innerHTML}</${n.tagName.toLowerCase()}>`))
             .join('');
     }
 
@@ -167,8 +166,8 @@ class MockElement {
     }
 
     matches(selector) {
-        const parts = selector.split(',').map(s => s.trim()).filter(Boolean);
-        return parts.some(part => {
+        const parts = selector.split(',').map((s) => s.trim()).filter(Boolean);
+        return parts.some((part) => {
             if (part.startsWith('#')) return this.id === part.slice(1);
             if (part.startsWith('.')) return this.classList.contains(part.slice(1));
             return this.tagName === part.toUpperCase();
@@ -256,7 +255,6 @@ function createHarness(fetchImpl) {
         return node;
     }
 
-    // Build DOM structure matching index.php
     const toggleBtn = el('button', { class: 'mobile-menu-toggle', 'aria-expanded': 'false' });
     el('button', { class: 'mobile-backdrop' });
 
@@ -301,29 +299,27 @@ function createHarness(fetchImpl) {
     el('span', { id: 'executionTime' });
     el('button', { class: 'run-btn', id: 'runCodeBtn' }).innerHTML = 'Run';
 
-    const sandbox = {
-        STRATEGIES_DATA,
-        ALLOWED_LIMITS: [100, 500, 1000, 2000],
-        DEFAULT_LIMIT: 1000,
-        document: doc,
-        window: { innerWidth: 1200 },
-        FormData,
-        AbortController,
-        performance,
-        setTimeout: () => 0,
-        fetch: fetchImpl || (async () => {
+    const app = createApp({
+        strategies: STRATEGIES_DATA,
+        defaultLimit: 1000,
+        doc,
+        win: { innerWidth: 1200 },
+        fetchImpl: fetchImpl || (async () => {
             throw new Error('fetch not stubbed');
         }),
-    };
+        schedule: () => 0,
+    });
+    app.init();
 
-    vm.createContext(sandbox);
-    vm.runInContext(scriptSource, sandbox);
-
-    return { sandbox, doc, idMap, toggleBtn, aside, versionList, limitSelect, sortControls };
+    return { app, doc, idMap, toggleBtn, aside, versionList, limitSelect, sortControls };
 }
 
 test('highlightCode escapes HTML, keeps apostrophes in comments safe, and applies token spans without leaking placeholders', () => {
-    const { sandbox } = createHarness();
+    assert.equal(getOrdinal(1), '1st');
+    assert.equal(getOrdinal(2), '2nd');
+    assert.equal(getOrdinal(3), '3rd');
+    assert.equal(getOrdinal(11), '11th');
+
     const sample = [
         "// If output is empty, it's just the number",
         'if ($i < 10 && $i > 0) {',
@@ -332,7 +328,7 @@ test('highlightCode escapes HTML, keeps apostrophes in comments safe, and applie
         '}',
     ].join('\n');
 
-    const html = sandbox.highlightCode(sample);
+    const html = highlightCode(sample);
 
     assert.ok(!html.includes('___TOK'), 'Should not leak placeholder tokens');
     assert.ok(html.includes('&lt;b&gt;tag&lt;/b&gt;'), 'Should HTML-escape tags inside strings');
@@ -347,14 +343,12 @@ test('highlightCode escapes HTML, keeps apostrophes in comments safe, and applie
 });
 
 test('selectVersion updates UI metadata, highlights code, marks active sidebar item, and closes open mobile drawer', () => {
-    const { sandbox, doc, aside, toggleBtn } = createHarness();
+    const { app, doc, aside, toggleBtn } = createHarness();
 
-    // Open mobile drawer first
-    sandbox.toggleMobileMenu();
+    app.toggleMobileMenu();
     assert.equal(aside.classList.contains('mobile-open'), true);
     assert.equal(toggleBtn.getAttribute('aria-expanded'), 'true');
 
-    // Simulate delegated click on child .v-name inside #item-match
     const matchBtn = doc.getElementById('item-match');
     const nameSpan = matchBtn.querySelector('.v-name');
     doc.getElementById('versionList').dispatchEvent({ type: 'click', target: nameSpan });
@@ -370,7 +364,7 @@ test('selectVersion updates UI metadata, highlights code, marks active sidebar i
 
 test('runCode renders untrusted output literally via textContent, includes memoryKb, and aborts stale responses on version switch', async () => {
     let pendingRequests = [];
-    const { sandbox, doc } = createHarness((_url, options) => {
+    const { app, doc } = createHarness((_url, options) => {
         return new Promise((resolve, reject) => {
             const entry = { signal: options.signal, resolve, reject };
             options.signal.addEventListener('abort', () => {
@@ -382,8 +376,7 @@ test('runCode renders untrusted output literally via textContent, includes memor
         });
     });
 
-    // 1. XSS safety + memoryKb display
-    const run1 = sandbox.runCode();
+    const run1 = app.runCode();
     assert.equal(pendingRequests.length, 1);
     pendingRequests[0].resolve({
         ok: true,
@@ -402,12 +395,11 @@ test('runCode renders untrusted output literally via textContent, includes memor
     assert.equal(outputEl.children.length, 0, 'Output should be plain text node without HTML elements');
     assert.ok(doc.getElementById('executionTime').textContent.includes('Mem: 12.5KB'));
 
-    // 2. Race protection: start a run on original, switch to classic before it resolves
     pendingRequests = [];
-    const staleRun = sandbox.runCode();
+    const staleRun = app.runCode();
     assert.equal(pendingRequests[0].signal.aborted, false);
 
-    sandbox.selectVersion('classic');
+    app.selectVersion('classic');
     assert.equal(pendingRequests[0].signal.aborted, true, 'Switching version should abort in-flight run');
     await staleRun;
 
@@ -416,7 +408,7 @@ test('runCode renders untrusted output literally via textContent, includes memor
 
 test('benchmarkAll locks buttons, badges tied Overall Winners, and sortResults handles all 6 sort modes', async () => {
     let resolveBench;
-    const { sandbox, doc, versionList, limitSelect, sortControls } = createHarness(() => {
+    const { app, doc, versionList, limitSelect, sortControls } = createHarness(() => {
         return new Promise((resolve) => {
             resolveBench = resolve;
         });
@@ -425,9 +417,8 @@ test('benchmarkAll locks buttons, badges tied Overall Winners, and sortResults h
     const benchBtn = doc.getElementById('benchmarkBtn');
     const mobileBenchBtn = doc.getElementById('mobileBenchmarkBtn');
 
-    const benchPromise = sandbox.benchmarkAll();
-    // Second concurrent call should be ignored
-    const secondCall = sandbox.benchmarkAll();
+    const benchPromise = app.benchmarkAll();
+    const secondCall = app.benchmarkAll();
 
     assert.equal(benchBtn.disabled, true);
     assert.equal(mobileBenchBtn.disabled, true);
@@ -436,7 +427,6 @@ test('benchmarkAll locks buttons, badges tied Overall Winners, and sortResults h
     const keys = Object.keys(STRATEGIES_DATA);
     const mockResults = {};
     keys.forEach((key, idx) => {
-        // Make 'classic' and 'clean' tie at overallRank === 1, and give 'precomputed' lowest memory
         let overallRank = idx + 3;
         let overallScore = (idx + 3) * 5;
         if (key === 'classic' || key === 'clean') {
@@ -475,7 +465,6 @@ test('benchmarkAll locks buttons, badges tied Overall Winners, and sortResults h
     const winnerBadges = doc.querySelectorAll('.v-winner-badge');
     assert.equal(winnerBadges.length, 2, 'Should badge all strategies tied at overallRank === 1');
 
-    // Verify sorting by each of the 6 sort modes
     const expectedFirstBySort = {
         avg: ['original'],
         median: ['precomputed'],
@@ -486,7 +475,7 @@ test('benchmarkAll locks buttons, badges tied Overall Winners, and sortResults h
     };
 
     for (const [mode, allowedFirstKeys] of Object.entries(expectedFirstBySort)) {
-        sandbox.sortResults(mode);
+        app.sortResults(mode);
         assert.ok(
             allowedFirstKeys.includes(versionList.children[0].dataset.key),
             `Expected one of [${allowedFirstKeys.join(', ')}] first when sorting by ${mode}, got ${versionList.children[0].dataset.key}`
@@ -498,10 +487,9 @@ test('benchmarkAll locks buttons, badges tied Overall Winners, and sortResults h
 });
 
 test('limit changes reset state, mobile navigation wraps, and Escape closes mobile menu', () => {
-    const { sandbox, doc, aside, toggleBtn, limitSelect } = createHarness();
+    const { app, doc, aside, toggleBtn, limitSelect } = createHarness();
 
-    // Put a benchmark result in place first
-    sandbox.processBenchmarkResults(
+    app.processBenchmarkResults(
         {
             original: {
                 name: STRATEGIES_DATA.original.name,
@@ -523,22 +511,19 @@ test('limit changes reset state, mobile navigation wraps, and Escape closes mobi
     );
     assert.equal(doc.getElementById('sortControls').style.display, 'flex');
 
-    // Change limit -> clears benchmark UI
     limitSelect.value = '2000';
     limitSelect.dispatchEvent({ type: 'change', target: limitSelect });
     assert.equal(doc.getElementById('sortControls').style.display, 'none');
     assert.equal(doc.getElementById('time-original').textContent, '');
     assert.ok(doc.getElementById('outputDisplay').textContent.includes('N=2000'));
 
-    // Prev from first strategy wraps to last strategy; Next wraps back to first
-    sandbox.selectVersion('original');
-    sandbox.prevStrategy();
+    app.selectVersion('original');
+    app.prevStrategy();
     assert.equal(doc.getElementById('displayTitle').textContent, STRATEGIES_DATA.math_division.name);
-    sandbox.nextStrategy();
+    app.nextStrategy();
     assert.equal(doc.getElementById('displayTitle').textContent, STRATEGIES_DATA.original.name);
 
-    // Escape closes open mobile menu and updates aria-expanded
-    sandbox.toggleMobileMenu();
+    app.toggleMobileMenu();
     assert.equal(aside.classList.contains('mobile-open'), true);
     assert.equal(toggleBtn.getAttribute('aria-expanded'), 'true');
     doc.dispatchEvent({ type: 'keydown', key: 'Escape' });

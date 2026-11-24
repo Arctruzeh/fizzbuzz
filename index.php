@@ -179,15 +179,13 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
     <a class="portfolio-link" href="https://ajlato.com/projects/fizzbuzz">← Back to Portfolio</a>
 
-    <!-- Inject strategies data for JavaScript -->
-    <script>
-        const STRATEGIES_DATA = <?= json_encode($strategies, $jsonFlags) ?>;
-        const ALLOWED_LIMITS = <?= json_encode($allowedLimits, $jsonFlags) ?>;
-        const DEFAULT_LIMIT = <?= (int) $defaultLimit ?>;
-    </script>
-
-    <!-- Main application script -->
-    <script src="script.js"></script>
+    <!-- Inject application config and load ES module -->
+    <script id="appConfig" type="application/json"><?= json_encode([
+        'strategies' => $strategies,
+        'allowedLimits' => $allowedLimits,
+        'defaultLimit' => $defaultLimit,
+    ], $jsonFlags) ?></script>
+    <script type="module" src="js/app.js"></script>
 
 </body>
 
