@@ -1,148 +1,232 @@
 /**
  * FizzBuzz Benchmark Application - Client-Side JavaScript
- * 
+ *
  * Handles UI interactions, code execution, benchmarking, and result visualization.
  */
 
-// Embed the PHP strategies data into JS
 const strategies = STRATEGIES_DATA;
 let currentVersion = null;
-let benchmarkResults = null; // Store results for re-sorting
-let activeSortMethod = 'avg'; // Track active sort
+let currentLimit = typeof DEFAULT_LIMIT === 'number' ? DEFAULT_LIMIT : 1000;
+let benchmarkResults = null;
+let activeSortMethod = 'median';
+let runAbortController = null;
+let runRequestId = 0;
+let isBenchmarking = false;
+
+const RUN_BTN_HTML =
+    '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">' +
+    '<path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />' +
+    '</svg> Run';
+
+function getOrdinal(n) {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
 
 function selectVersion(key) {
+    if (!strategies[key]) return;
+
+    if (runAbortController) {
+        runAbortController.abort();
+        runAbortController = null;
+    }
+    runRequestId++;
+
     currentVersion = key;
     const s = strategies[key];
 
-    // Update UI Text
-    document.getElementById('displayTitle').innerText = s.name;
-    document.getElementById('displayDesc').innerText = s.description;
+    document.getElementById('displayTitle').textContent = s.name;
+    document.getElementById('displayDesc').textContent = s.description;
 
-    // Update Code View
-    const codeHTML = highlightCode(s.code);
-    document.getElementById('codeDisplay').innerHTML = codeHTML;
+    const complexityEl = document.getElementById('displayComplexity');
+    if (complexityEl) {
+        complexityEl.textContent = s.complexity || '';
+        complexityEl.style.display = s.complexity ? 'inline-block' : 'none';
+    }
 
-    // Reset Output and Timer
-    document.getElementById('outputDisplay').innerText = "Ready to execute...";
-    document.getElementById('executionTime').innerText = "";
+    document.getElementById('codeDisplay').innerHTML = highlightCode(s.code);
+    document.getElementById('outputDisplay').textContent = 'Ready to execute...';
+    document.getElementById('executionTime').textContent = '';
 
-    // Highlight Sidebar
+    const runBtn = document.getElementById('runCodeBtn');
+    runBtn.disabled = false;
+    runBtn.innerHTML = RUN_BTN_HTML;
+    runBtn.classList.remove('loading');
+
     document.querySelectorAll('.version-item').forEach(el => el.classList.remove('active'));
-    document.getElementById('item-' + key).classList.add('active');
+    const activeItem = document.getElementById('item-' + key);
+    if (activeItem) {
+        activeItem.classList.add('active');
+    }
 
-    // Auto-close mobile menu if open
     const aside = document.querySelector('aside');
-    if (aside.classList.contains('mobile-open')) {
+    if (aside && aside.classList.contains('mobile-open')) {
         toggleMobileMenu();
     }
 }
 
-// Robust Syntax Highlighting Helper
+/**
+ * Syntax highlighting with single-pass token extraction so comments inside strings
+ * and quotes inside comments cannot interfere with each other.
+ */
 function highlightCode(code) {
-    // Escaping first to prevent HTML injection from the code itself
-    code = code.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    let escaped = code
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
 
-    const placeholders = { strings: [], comments: [] };
+    const tokens = [];
 
-    // 1. Extract Strings (replace with placeholder)
-    code = code.replaceAll(/(['"])(.*?)\1/g, function (match) {
-        placeholders.strings.push(match);
-        return '___STR' + (placeholders.strings.length - 1) + '___';
+    // Single pass: match line comments, single-quoted strings, or double-quoted strings
+    escaped = escaped.replaceAll(/(\/\/.*$|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")/gm, function (match) {
+        const type = match.startsWith('//') ? 'com' : 'str';
+        const index = tokens.length;
+        tokens.push({ type, text: match });
+        return '___TOK' + index + '___';
     });
 
-    // 2. Extract Comments (replace with placeholder)
-    // Note: We extracted strings first, so "//" inside a string won't trigger this.
-    code = code.replaceAll(/(\/\/.*)/g, function (match) {
-        placeholders.comments.push(match);
-        return '___COM' + (placeholders.comments.length - 1) + '___';
+    // Highlight keywords
+    escaped = escaped.replaceAll(
+        /\b(for|foreach|as|if|elseif|else|switch|case|break|default|match|echo|return|function|use|yield|goto|void|int|string)\b/g,
+        '<span class="kwd">$1</span>'
+    );
+
+    // Highlight built-in functions
+    escaped = escaped.replaceAll(
+        /\b(array_map|array_walk|range|implode|str_repeat|floor|is_int|isset|defined|define|function_exists)\b/g,
+        '<span class="func">$1</span>'
+    );
+
+    // Highlight PHP variables
+    escaped = escaped.replaceAll(/(\$[a-zA-Z_]\w*)/g, '<span class="var">$1</span>');
+
+    // Highlight standalone numeric literals
+    escaped = escaped.replaceAll(/\b(\d+)\b/g, '<span class="num">$1</span>');
+
+    // Restore comment and string tokens
+    escaped = escaped.replaceAll(/___TOK(\d+)___/g, function (_match, id) {
+        const tok = tokens[Number(id)];
+        return '<span class="' + tok.type + '">' + tok.text + '</span>';
     });
 
-    // 3. Highlight Keywords & Numbers (now safe from strings/comments)
-    code = code.replaceAll(/\b(for|foreach|as|if|elseif|else|switch|case|break|default|match|echo|return|function|use|yield|goto|array_map|array_walk|range|implode|str_repeat|floor|is_int|defined|define|function_exists)\b/g, '<span class="kwd">$1</span>');
-    code = code.replaceAll(/\b(\d+)\b/g, '<span class="num">$1</span>');
-
-    // 4. Restore Comments
-    code = code.replaceAll(/___COM(\d+)___/g, function (match, id) {
-        return '<span class="com">' + placeholders.comments[id] + '</span>';
-    });
-
-    // 5. Restore Strings
-    code = code.replaceAll(/___STR(\d+)___/g, function (match, id) {
-        return '<span class="str">' + placeholders.strings[id] + '</span>';
-    });
-
-    return code;
+    return escaped;
 }
 
 async function runCode() {
     if (!currentVersion) return;
 
+    if (runAbortController) {
+        runAbortController.abort();
+    }
+    const controller = new AbortController();
+    runAbortController = controller;
+    const requestId = ++runRequestId;
+
     const btn = document.getElementById('runCodeBtn');
     const output = document.getElementById('outputDisplay');
     const timeDisplay = document.getElementById('executionTime');
 
-    // UI State
     btn.disabled = true;
-    btn.innerHTML = 'Running...';
+    btn.textContent = 'Running...';
     btn.classList.add('loading');
-    output.innerText = 'Calculating...';
-    timeDisplay.innerText = '';
+    output.textContent = 'Calculating...';
+    timeDisplay.textContent = '';
 
-    // Track client-side time
     const clientStart = performance.now();
 
     try {
         const formData = new FormData();
         formData.append('action', 'run');
         formData.append('version', currentVersion);
+        formData.append('limit', String(currentLimit));
 
         const response = await fetch('api.php', {
             method: 'POST',
-            body: formData
+            body: formData,
+            signal: controller.signal
         });
 
         const clientEnd = performance.now();
         const totalTime = clientEnd - clientStart;
-
         const result = await response.json();
 
+        if (requestId !== runRequestId) return;
+
         if (!response.ok || result.error) {
-            output.innerText = "Error: " + (result.error || `HTTP ${response.status}`);
+            output.textContent = 'Error: ' + (result.error || `HTTP ${response.status}`);
         } else {
-            output.innerHTML = result.output;
+            output.textContent = result.output;
 
-            // Display timing information
-            timeDisplay.innerHTML = `Exec: ${result.executionTime}ms <span style="color: var(--text-dim);">|</span> Total: ${totalTime.toFixed(2)}ms`;
+            timeDisplay.textContent = '';
+            timeDisplay.appendChild(document.createTextNode(`Exec: ${result.executionTime}ms `));
+            const sep = document.createElement('span');
+            sep.className = 'time-sep';
+            sep.textContent = '|';
+            timeDisplay.appendChild(sep);
+            timeDisplay.appendChild(document.createTextNode(` Total: ${totalTime.toFixed(2)}ms`));
+            if (typeof result.memoryKb === 'number') {
+                const memSep = document.createElement('span');
+                memSep.className = 'time-sep';
+                memSep.textContent = ' | ';
+                timeDisplay.appendChild(memSep);
+                timeDisplay.appendChild(document.createTextNode(`Mem: ${result.memoryKb}KB`));
+            }
+            timeDisplay.appendChild(document.createTextNode(` (N=${result.limit})`));
         }
-
     } catch (e) {
-        output.innerText = "Error executing code: " + e.message;
+        if (e.name === 'AbortError' || requestId !== runRequestId) {
+            return;
+        }
+        output.textContent = 'Error executing code: ' + e.message;
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" /></svg> Run';
-        btn.classList.remove('loading');
+        if (requestId === runRequestId) {
+            runAbortController = null;
+            btn.disabled = false;
+            btn.innerHTML = RUN_BTN_HTML;
+            btn.classList.remove('loading');
+        }
     }
 }
 
-async function benchmarkAll(event) {
-    const btn = event.target.closest('button');
-    const originalHTML = btn.innerHTML;
-
-    // Clear previous times, classes, and winner badges
+function clearBenchmarkUI() {
     document.querySelectorAll('.v-time').forEach(el => {
-        el.innerHTML = '';
+        el.textContent = '';
         el.classList.remove('fastest', 'slowest');
     });
     document.querySelectorAll('.v-winner-badge').forEach(el => el.remove());
+    document.getElementById('sortControls').style.display = 'none';
+    benchmarkResults = null;
+}
 
-    // UI State
-    btn.disabled = true;
-    btn.innerHTML = 'Running (1000x each)...';
-    document.getElementById('outputDisplay').innerHTML = '<span style="color: var(--hazard-yellow)">Initializing Benchmark Protocol...</span><br>Running 1000 iterations per strategy.';
+async function benchmarkAll() {
+    if (isBenchmarking) return;
+    isBenchmarking = true;
+
+    const benchButtons = Array.from(document.querySelectorAll('.benchmark-btn, .mobile-benchmark-btn'));
+    const originalButtonStates = benchButtons.map(b => ({ el: b, html: b.innerHTML }));
+    const limitSelect = document.getElementById('limitSelect');
+
+    clearBenchmarkUI();
+
+    benchButtons.forEach(b => {
+        b.disabled = true;
+        b.textContent = 'Running...';
+    });
+    if (limitSelect) limitSelect.disabled = true;
+
+    const output = document.getElementById('outputDisplay');
+    output.textContent = '';
+    const initSpan = document.createElement('span');
+    initSpan.className = 'status-warn';
+    initSpan.textContent = `Initializing Benchmark Protocol (N=${currentLimit})...`;
+    output.appendChild(initSpan);
+    output.appendChild(document.createTextNode('\nRunning interleaved warmup + timed rounds across all strategies.'));
 
     try {
         const formData = new FormData();
         formData.append('action', 'benchmark');
+        formData.append('limit', String(currentLimit));
 
         const response = await fetch('api.php', {
             method: 'POST',
@@ -156,240 +240,179 @@ async function benchmarkAll(event) {
         }
 
         if (data.results) {
-            processBenchmarkResults(data.results);
+            processBenchmarkResults(data.results, data.limit ?? currentLimit);
         }
     } catch (e) {
-        const output = document.getElementById('outputDisplay');
-        output.innerHTML = '';
+        output.textContent = '';
         const errSpan = document.createElement('span');
-        errSpan.style.color = '#ff5252';
+        errSpan.className = 'status-error';
         errSpan.textContent = 'Benchmark failed: ' + e.message;
         output.appendChild(errSpan);
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
+        isBenchmarking = false;
+        originalButtonStates.forEach(({ el, html }) => {
+            el.disabled = false;
+            el.innerHTML = html;
+        });
+        if (limitSelect) limitSelect.disabled = false;
     }
 }
 
-function processBenchmarkResults(results) {
-    // Find fastest and slowest
-    const times = Object.values(results).map(r => r.time);
-    const fastest = Math.min(...times);
-    const slowest = Math.max(...times);
+function createStatSpan(className, text) {
+    const span = document.createElement('span');
+    span.className = className;
+    span.textContent = text;
+    return span;
+}
 
-    // Display results with rankings
+function processBenchmarkResults(results, limit) {
+    const medians = Object.values(results).map(r => r.median);
+    const fastest = Math.min(...medians);
+    const slowest = Math.max(...medians);
+
     for (const [key, result] of Object.entries(results)) {
         const timeEl = document.getElementById('time-' + key);
+        const itemEl = document.getElementById('item-' + key);
+        if (!timeEl || !itemEl) continue;
 
-        // Get ordinal suffix (1st, 2nd, 3rd, etc.)
-        const getOrdinal = (n) => {
-            const s = ['th', 'st', 'nd', 'rd'];
-            const v = n % 100;
-            return n + (s[(v - 20) % 10] || s[v] || s[0]);
-        };
+        timeEl.textContent = '';
 
-        timeEl.innerHTML = `<span class="stat-avg">${result.time}ms</span> (avg of ${result.runs}) <span class="v-rank">${getOrdinal(result.rank)}</span>`;
+        // Primary headline: median + avg + rank
+        timeEl.appendChild(createStatSpan('stat-median', `${result.median}ms`));
+        timeEl.appendChild(document.createTextNode(` med (${result.runs}x, N=${limit}) `));
+        timeEl.appendChild(createStatSpan('v-rank', getOrdinal(result.rank)));
 
-        // Add min/max info
-        const variance = result.max - result.min;
-        const minMaxEl = document.createElement('span');
-        minMaxEl.className = 'v-minmax';
-        minMaxEl.innerHTML = `min: <span class="stat-min">${result.min}ms</span> | max: <span class="stat-max">${result.max}ms</span> | var: <span class="stat-variance">${variance.toFixed(3)}ms</span>`;
-        timeEl.appendChild(minMaxEl);
+        // Secondary stats row
+        const detailEl = document.createElement('span');
+        detailEl.className = 'v-minmax';
+        detailEl.appendChild(document.createTextNode('avg: '));
+        detailEl.appendChild(createStatSpan('stat-avg', `${result.time}ms`));
+        detailEl.appendChild(document.createTextNode(' | min: '));
+        detailEl.appendChild(createStatSpan('stat-min', `${result.min}ms`));
+        detailEl.appendChild(document.createTextNode(' | p95: '));
+        detailEl.appendChild(createStatSpan('stat-p95', `${result.p95}ms`));
+        detailEl.appendChild(document.createTextNode(' | max: '));
+        detailEl.appendChild(createStatSpan('stat-max', `${result.max}ms`));
+        detailEl.appendChild(document.createTextNode(' | σ: '));
+        detailEl.appendChild(createStatSpan('stat-stddev', `${result.stddev}ms`));
+        if (typeof result.memoryKb === 'number') {
+            detailEl.appendChild(document.createTextNode(' | mem: '));
+            detailEl.appendChild(createStatSpan('stat-memory', `${result.memoryKb}KB`));
+        }
+        timeEl.appendChild(detailEl);
 
-        // Add overall ranking if available
-        if (result.overallRank) {
-            const overallEl = document.createElement('span');
-            overallEl.className = 'v-overall';
-            overallEl.innerHTML = `Overall: <span class="stat-overall">${result.overallRank} (score: ${result.overallScore})</span>`;
-            timeEl.appendChild(overallEl);
+        // Overall ranking row
+        const overallEl = document.createElement('span');
+        overallEl.className = 'v-overall';
+        overallEl.appendChild(document.createTextNode('Overall: '));
+        overallEl.appendChild(
+            createStatSpan('stat-overall', `${getOrdinal(result.overallRank)} (score: ${result.overallScore})`)
+        );
+        timeEl.appendChild(overallEl);
+
+        // Highlight fastest / slowest by median
+        if (result.median === fastest && fastest !== slowest) {
+            timeEl.classList.add('fastest');
+        } else if (result.median === slowest && fastest !== slowest) {
+            timeEl.classList.add('slowest');
         }
 
-        // Highlight fastest/slowest
-        if (result.time === fastest && fastest !== slowest) {
-            timeEl.classList.add('fastest');
-        } else if (result.time === slowest && fastest !== slowest) {
-            timeEl.classList.add('slowest');
+        // Badge all strategies tied for overallRank === 1
+        if (result.overallRank === 1) {
+            const nameEl = itemEl.querySelector('.v-name');
+            if (nameEl && !nameEl.querySelector('.v-winner-badge')) {
+                const badge = document.createElement('span');
+                badge.className = 'v-winner-badge';
+                badge.textContent = 'Overall Winner';
+                nameEl.appendChild(document.createTextNode(' '));
+                nameEl.appendChild(badge);
+            }
         }
     }
 
-    // Calculate overall rankings
-    calculateOverallRankings(results);
-
-    // Store results for re-sorting
     benchmarkResults = results;
-
-    // Show sort controls
     document.getElementById('sortControls').style.display = 'flex';
-
-    // Apply the currently active sort method
     sortResults(activeSortMethod);
 
-    // If on mobile, open the sidebar to show results immediately
+    const output = document.getElementById('outputDisplay');
+    output.textContent = '';
+    const doneSpan = document.createElement('span');
+    doneSpan.className = 'status-ok';
+    doneSpan.textContent = `Benchmark Complete (N=${limit})!`;
+    output.appendChild(doneSpan);
+
     if (window.innerWidth <= 900) {
         const aside = document.querySelector('aside');
-        if (!aside.classList.contains('mobile-open')) {
+        if (aside && !aside.classList.contains('mobile-open')) {
             toggleMobileMenu();
         }
-        document.getElementById('outputDisplay').innerHTML = '<span style="color: var(--text-phosphor)">Benchmark Complete!</span><br>Results are now visible in the menu.';
+        output.appendChild(document.createTextNode('\nResults are now visible in the menu.'));
     } else {
-        document.getElementById('outputDisplay').innerHTML = '<span style="color: var(--text-phosphor)">Benchmark Complete!</span><br>See sidebar for rankings.';
+        output.appendChild(document.createTextNode('\nSee sidebar for rankings.'));
     }
 }
 
 function sortResults(sortBy) {
     if (!benchmarkResults) return;
 
-    // Track active sort method
     activeSortMethod = sortBy;
 
-    // Update active button
     document.querySelectorAll('.sort-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.sort === sortBy);
     });
 
-    // Remove existing highlights
     document.querySelectorAll('.stat-highlight').forEach(el => el.classList.remove('stat-highlight'));
-
-    // Add new highlight
-    const highlightClass = 'stat-' + sortBy;
-    if (sortBy === 'avg') { // map 'avg' sort to '.stat-avg' class
-        document.querySelectorAll('.stat-avg').forEach(el => el.classList.add('stat-highlight'));
-    } else {
-        document.querySelectorAll('.' + highlightClass).forEach(el => el.classList.add('stat-highlight'));
-    }
-
+    document.querySelectorAll('.stat-' + sortBy).forEach(el => el.classList.add('stat-highlight'));
 
     const versionList = document.getElementById('versionList');
     const items = Array.from(versionList.children);
 
-    // Create sort map
     const sortMap = {};
     for (const [key, result] of Object.entries(benchmarkResults)) {
-        const variance = result.max - result.min;
         sortMap[key] = {
             avg: result.time,
+            median: result.median,
             min: result.min,
-            max: result.max,
-            variance: variance,
-            overall: result.overallScore ?? 999
+            stddev: result.stddev,
+            memory: result.memoryKb ?? Number.MAX_SAFE_INTEGER,
+            overall: result.overallScore ?? Number.MAX_SAFE_INTEGER
         };
     }
 
-    // Sort items
     items.sort((a, b) => {
-        const keyA = a.dataset.key;
-        const keyB = b.dataset.key;
-        const valA = sortMap[keyA]?.[sortBy] ?? 999;
-        const valB = sortMap[keyB]?.[sortBy] ?? 999;
+        const valA = sortMap[a.dataset.key]?.[sortBy] ?? Number.MAX_SAFE_INTEGER;
+        const valB = sortMap[b.dataset.key]?.[sortBy] ?? Number.MAX_SAFE_INTEGER;
         return valA - valB;
     });
 
-    // Re-append in sorted order
     items.forEach(item => versionList.appendChild(item));
 }
 
-function calculateOverallRankings(results) {
-    // Create arrays for each metric
-    const metrics = ['time', 'min', 'max'];
-    const rankings = {};
-
-    // Calculate variance and add to results
-    for (const result of Object.values(results)) {
-        result.variance = result.max - result.min; // Calculate variance
-    }
-
-    // Rank each metric (lower is better for all)
-    metrics.push('variance');
-
-    for (const metric of metrics) {
-        const sorted = Object.entries(results).sort((a, b) => a[1][metric] - b[1][metric]);
-        sorted.forEach(([key, _], index) => {
-            if (!rankings[key]) rankings[key] = {};
-            rankings[key][metric] = index + 1; // 1-based ranking
-        });
-    }
-
-    // Calculate overall score (sum of all ranks, lower is better)
-    const overallScores = {};
-    for (const [key, ranks] of Object.entries(rankings)) {
-        overallScores[key] = Object.values(ranks).reduce((sum, rank) => sum + rank, 0);
-    }
-
-    // Sort by overall score
-    const overallSorted = Object.entries(overallScores).sort((a, b) => a[1] - b[1]);
-
-    // Add overall rankings to results
-    overallSorted.forEach(([key, score], index) => {
-        results[key].overallScore = score;
-        results[key].overallRank = index + 1;
-        results[key].rankBreakdown = rankings[key];
-    });
-
-    // Display overall winner
-    const winner = overallSorted[0];
-    const winnerKey = winner[0];
-    // winnerName variable removed as it was unused
-
-    // Add winner badge to the winner's name
-    const winnerItem = document.getElementById('item-' + winnerKey);
-    const winnerNameEl = winnerItem.querySelector('.v-name');
-    if (!winnerNameEl.querySelector('.v-winner-badge')) {
-        const badge = document.createElement('span');
-        badge.className = 'v-winner-badge';
-        badge.textContent = 'Overall Winner';
-
-        // Ensure a single space before the badge
-        if (!winnerNameEl.lastChild || winnerNameEl.lastChild.nodeType !== Node.TEXT_NODE || !winnerNameEl.lastChild.textContent.endsWith(' ')) {
-            winnerNameEl.appendChild(document.createTextNode(' '));
-        }
-
-        winnerNameEl.appendChild(badge);
-    }
-
-    // Update all items with overall ranking info
-    for (const [key, result] of Object.entries(results)) {
-        const timeEl = document.getElementById('time-' + key);
-        let overallEl = timeEl.querySelector('.v-overall');
-
-        if (!overallEl) {
-            overallEl = document.createElement('span');
-            overallEl.className = 'v-overall';
-            timeEl.appendChild(overallEl);
-        }
-
-        overallEl.innerHTML = `Overall: <span class="stat-overall">${result.overallRank} (score: ${result.overallScore})</span>`;
-    }
-}
-
-// Auto-select the original version on load
-selectVersion('original');
-
-// Mobile menu toggle
 function toggleMobileMenu() {
     const aside = document.querySelector('aside');
     const backdrop = document.querySelector('.mobile-backdrop');
+    const toggleBtn = document.querySelector('.mobile-menu-toggle');
+    if (!aside || !backdrop) return;
 
-    aside.classList.toggle('mobile-open');
-    backdrop.classList.toggle('active');
+    const isOpen = aside.classList.toggle('mobile-open');
+    backdrop.classList.toggle('active', isOpen);
+    if (toggleBtn) {
+        toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
 }
 
-// Mobile Strategy Navigation Logic
 function getStrategyKeys() {
-    // Use the visual order of items in the sidebar
-    const items = Array.from(document.querySelectorAll('.version-item'));
-    return items.map(item => item.id.replace('item-', ''));
+    return Array.from(document.querySelectorAll('.version-item')).map(item => item.dataset.key);
 }
 
 function nextStrategy() {
     const keys = getStrategyKeys();
     const currentIndex = keys.indexOf(currentVersion);
-    if (currentIndex === -1) return; // Should not happen
+    if (currentIndex === -1) return;
 
     const nextIndex = (currentIndex + 1) % keys.length;
     selectVersion(keys[nextIndex]);
 
-    // Smooth scroll to top of code for better mobile UX
     const codePanel = document.getElementById('codeDisplay');
     if (codePanel) codePanel.scrollTop = 0;
 }
@@ -402,17 +425,99 @@ function prevStrategy() {
     const prevIndex = (currentIndex - 1 + keys.length) % keys.length;
     selectVersion(keys[prevIndex]);
 
-    // Smooth scroll to top of code
     const codePanel = document.getElementById('codeDisplay');
     if (codePanel) codePanel.scrollTop = 0;
 }
 
-// Auto-open menu on mobile load so users immediately see the full list & benchmark options
-if (window.innerWidth <= 900) {
-    setTimeout(() => {
-        const aside = document.querySelector('aside');
-        if (aside && !aside.classList.contains('mobile-open')) {
-            toggleMobileMenu();
-        }
-    }, 500); // Slight delay for visual entrance effect
+function handleLimitChange(event) {
+    const nextLimit = Number.parseInt(event.target.value, 10);
+    if (!Number.isFinite(nextLimit)) return;
+
+    currentLimit = nextLimit;
+
+    if (runAbortController) {
+        runAbortController.abort();
+        runAbortController = null;
+    }
+    runRequestId++;
+
+    document.getElementById('outputDisplay').textContent = `Limit updated to N=${currentLimit}. Ready to execute...`;
+    document.getElementById('executionTime').textContent = '';
+
+    const runBtn = document.getElementById('runCodeBtn');
+    runBtn.disabled = false;
+    runBtn.innerHTML = RUN_BTN_HTML;
+    runBtn.classList.remove('loading');
+
+    clearBenchmarkUI();
 }
+
+function init() {
+    const versionList = document.getElementById('versionList');
+    if (versionList) {
+        versionList.addEventListener('click', (event) => {
+            const item = event.target.closest('.version-item');
+            if (item && item.dataset.key) {
+                selectVersion(item.dataset.key);
+            }
+        });
+    }
+
+    const runBtn = document.getElementById('runCodeBtn');
+    if (runBtn) runBtn.addEventListener('click', runCode);
+
+    const benchBtn = document.getElementById('benchmarkBtn');
+    if (benchBtn) benchBtn.addEventListener('click', benchmarkAll);
+
+    const mobileBenchBtn = document.getElementById('mobileBenchmarkBtn');
+    if (mobileBenchBtn) mobileBenchBtn.addEventListener('click', benchmarkAll);
+
+    const sortControls = document.getElementById('sortControls');
+    if (sortControls) {
+        sortControls.addEventListener('click', (event) => {
+            const btn = event.target.closest('.sort-btn');
+            if (btn && btn.dataset.sort) {
+                sortResults(btn.dataset.sort);
+            }
+        });
+    }
+
+    const limitSelect = document.getElementById('limitSelect');
+    if (limitSelect) {
+        limitSelect.addEventListener('change', handleLimitChange);
+    }
+
+    const mobileToggle = document.querySelector('.mobile-menu-toggle');
+    if (mobileToggle) mobileToggle.addEventListener('click', toggleMobileMenu);
+
+    const mobileBackdrop = document.querySelector('.mobile-backdrop');
+    if (mobileBackdrop) mobileBackdrop.addEventListener('click', toggleMobileMenu);
+
+    const prevBtn = document.getElementById('prevStrategyBtn');
+    if (prevBtn) prevBtn.addEventListener('click', prevStrategy);
+
+    const nextBtn = document.getElementById('nextStrategyBtn');
+    if (nextBtn) nextBtn.addEventListener('click', nextStrategy);
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            const aside = document.querySelector('aside');
+            if (aside && aside.classList.contains('mobile-open')) {
+                toggleMobileMenu();
+            }
+        }
+    });
+
+    selectVersion('original');
+
+    if (window.innerWidth <= 900) {
+        setTimeout(() => {
+            const aside = document.querySelector('aside');
+            if (aside && !aside.classList.contains('mobile-open')) {
+                toggleMobileMenu();
+            }
+        }, 500);
+    }
+}
+
+init();

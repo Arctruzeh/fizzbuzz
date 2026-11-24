@@ -9,5 +9,11 @@
     },
     "require": {
         "php": ">=8.0"
+    },
+    "scripts": {
+        "test": [
+            "php tests/verify.php",
+            "node --test tests/frontend.test.mjs"
+        ]
     }
 }

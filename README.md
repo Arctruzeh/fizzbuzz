@@ -5,9 +5,10 @@ A high-fidelity "Industrial Assemblage" themed benchmark for FizzBuzz implementa
 ## Features
 
 * **Industrial Assemblage Design**: A custom aesthetic featuring "Deep Oil Black" backgrounds, CRT-style code displays, mechanical switch interactions, and stamped steel typography.
-* **Performance Benchmarking**: Runs 1000 iterations of each strategy to calculate Average, Minimum, Maximum, and Variance execution times.
-* **Dynamic Sorting**: Sort results by Average, Min, Max, Variance, or Overall Score.
-* **Visual Feedback**: Active metrics and overall winners are highlighted in "Phosphor Green" for quick analysis.
+* **Rigorous Performance & Memory Benchmarking**: Uses monotonic `hrtime(true)` nanosecond timing with warmup passes and interleaved rounds across strategies to calculate Average, Median, Min, P95, Max, Sample Standard Deviation (`σ`), and Peak Memory (`KB`) without output-buffering overhead.
+* **Configurable Problem Size (`N`)**: Run and benchmark strategies across `100`, `500`, `1,000`, or `2,000` numbers to observe algorithmic and memory trade-offs.
+* **Dynamic Sorting & Tie-Aware Rankings**: Sort results by Average, Median, Min, StdDev, Peak Memory, or Overall Score with competition-style tie handling.
+* **Visual Feedback**: Active metrics, fastest/slowest timings, and overall winners are highlighted in "Phosphor Green" for quick analysis.
 * **17 PHP Strategies**: Original Portfolio Version, Classic Modulo, Concatenation, Counter Method, One-Liner Ternary, Functional (`array_map`), Lookup Table, String Multiplication, Switch Statement, PHP 8+ Match Expression, Generator, Recursive, Pre-computed String, Goto Loop, Spaceship Operator, Range + `array_walk`, and Modulo-Free Division.
 
 ## Tech Stack
@@ -37,6 +38,17 @@ Requires **PHP 8.0+** and **Composer**:
 ```bash
 composer install
 php -S localhost:8080
+```
+
+### Automated Tests
+
+Run both the PHP backend/parity/API suite and the Node.js frontend unit tests:
+
+```bash
+composer test
+# or individually:
+php tests/verify.php
+node --test tests/frontend.test.mjs
 ```
 
 ## Demo

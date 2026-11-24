@@ -1,15 +1,20 @@
 <?php
+
+declare(strict_types=1);
+
 /**
  * FizzBuzz Benchmark Application
  * Main entry point - renders the FizzBuzz Benchmark UI
  */
 
-// Include dependencies
 require_once __DIR__ . '/vendor/autoload.php';
 
 use FizzBuzz\Strategies;
 
 $strategies = Strategies::getPublicData();
+$allowedLimits = Strategies::ALLOWED_LIMITS;
+$defaultLimit = Strategies::DEFAULT_LIMIT;
+$jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -30,7 +35,8 @@ $strategies = Strategies::getPublicData();
 
     <!-- Mobile Navbar (Visible only on mobile) -->
     <header class="mobile-navbar">
-        <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">
+        <button type="button" class="mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false"
+            aria-controls="strategySidebar">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                 stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
@@ -42,20 +48,16 @@ $strategies = Strategies::getPublicData();
     </header>
 
     <!-- Mobile backdrop -->
-    <button type="button" class="mobile-backdrop" aria-label="Close menu" onclick="toggleMobileMenu()"></button>
-
-
+    <button type="button" class="mobile-backdrop" aria-label="Close menu"></button>
 
     <div class="container">
-        <aside>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-dim); font-weight: 700;">
-                    Select Version</div>
-                <button class="run-btn benchmark-btn" onclick="benchmarkAll(event)"
-                    style="padding: 0.35rem 0.65rem; font-size: 0.75rem;"
+        <aside id="strategySidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">Select Version</div>
+                <button type="button" class="benchmark-btn" id="benchmarkBtn"
                     title="Run all versions and compare performance">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                        stroke="currentColor" style="width: 14px; height: 14px;">
+                        stroke="currentColor" class="btn-icon">
                         <path stroke-linecap="round" stroke-linejoin="round"
                             d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
                     </svg>
@@ -64,20 +66,26 @@ $strategies = Strategies::getPublicData();
             </div>
 
             <div class="sort-controls" id="sortControls" style="display: none;">
-                <button class="sort-btn active" onclick="sortResults('avg')" data-sort="avg">Avg</button>
-                <button class="sort-btn" onclick="sortResults('min')" data-sort="min">Min</button>
-                <button class="sort-btn" onclick="sortResults('max')" data-sort="max">Max</button>
-                <button class="sort-btn" onclick="sortResults('variance')" data-sort="variance">Var</button>
-                <button class="sort-btn" onclick="sortResults('overall')" data-sort="overall">Overall</button>
+                <button type="button" class="sort-btn" data-sort="avg">Avg</button>
+                <button type="button" class="sort-btn active" data-sort="median">Med</button>
+                <button type="button" class="sort-btn" data-sort="min">Min</button>
+                <button type="button" class="sort-btn" data-sort="stddev">Std</button>
+                <button type="button" class="sort-btn" data-sort="memory">Mem</button>
+                <button type="button" class="sort-btn" data-sort="overall">All</button>
             </div>
 
             <ul class="version-list" id="versionList">
                 <?php foreach ($strategies as $key => $data): ?>
-                    <li data-key="<?= htmlspecialchars($key) ?>">
-                        <button type="button" class="version-item" onclick="selectVersion('<?= $key ?>')" id="item-<?= $key ?>">
-                            <span class="v-name"><?= htmlspecialchars($data['name']) ?></span>
-                            <span class="v-desc"><?= htmlspecialchars($data['description']) ?></span>
-                            <span class="v-time" id="time-<?= $key ?>"></span>
+                    <?php $escapedKey = htmlspecialchars($key, ENT_QUOTES, 'UTF-8'); ?>
+                    <li data-key="<?= $escapedKey ?>">
+                        <button type="button" class="version-item" data-key="<?= $escapedKey ?>"
+                            id="item-<?= $escapedKey ?>">
+                            <span class="v-header">
+                                <span class="v-name"><?= htmlspecialchars($data['name'], ENT_QUOTES, 'UTF-8') ?></span>
+                                <span class="v-complexity"><?= htmlspecialchars($data['complexity'], ENT_QUOTES, 'UTF-8') ?></span>
+                            </span>
+                            <span class="v-desc"><?= htmlspecialchars($data['description'], ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="v-time" id="time-<?= $escapedKey ?>"></span>
                         </button>
                     </li>
                 <?php endforeach; ?>
@@ -86,17 +94,33 @@ $strategies = Strategies::getPublicData();
 
         <main>
             <div class="info-header">
-                <h2 class="info-title" id="displayTitle">Select a version</h2>
+                <div class="info-title-row">
+                    <div class="info-title-group">
+                        <h2 class="info-title" id="displayTitle">Select a version</h2>
+                        <span class="complexity-badge" id="displayComplexity"></span>
+                    </div>
+
+                    <div class="limit-controls">
+                        <label for="limitSelect" class="limit-label">N =</label>
+                        <select id="limitSelect" class="limit-select" aria-label="FizzBuzz upper limit">
+                            <?php foreach ($allowedLimits as $limitOption): ?>
+                                <option value="<?= (int) $limitOption ?>"<?= $limitOption === $defaultLimit ? ' selected' : '' ?>>
+                                    <?= number_format((int) $limitOption) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
 
                 <div class="mobile-strategy-nav">
-                    <button class="nav-btn" onclick="prevStrategy()">
+                    <button type="button" class="nav-btn" id="prevStrategyBtn">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                             stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
                         </svg>
                         Prev
                     </button>
-                    <button class="nav-btn" onclick="nextStrategy()">
+                    <button type="button" class="nav-btn" id="nextStrategyBtn">
                         Next
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                             stroke="currentColor">
@@ -105,7 +129,7 @@ $strategies = Strategies::getPublicData();
                     </button>
                 </div>
 
-                <button class="nav-btn mobile-benchmark-btn" onclick="benchmarkAll(event)">
+                <button type="button" class="nav-btn mobile-benchmark-btn" id="mobileBenchmarkBtn">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                         stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round"
@@ -124,18 +148,19 @@ $strategies = Strategies::getPublicData();
                     <div class="panel-header">
                         <span class="panel-title">Source Code</span>
                     </div>
-                    <div class="code-content" id="codeDisplay">Select a version...</div>
+                    <div class="panel-body">
+                        <div class="code-content" id="codeDisplay">Select a version...</div>
+                    </div>
                 </div>
 
                 <!-- Output Side -->
                 <div class="panel">
                     <div class="panel-header">
-                        <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div class="panel-title-group">
                             <span class="panel-title">Terminal Output</span>
-                            <span id="executionTime"
-                                style="font-size: 0.75rem; color: var(--text-dim); font-weight: 400;"></span>
+                            <span id="executionTime" class="execution-time"></span>
                         </div>
-                        <button class="run-btn" id="runCodeBtn" onclick="runCode()">
+                        <button type="button" class="run-btn" id="runCodeBtn">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                                 stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round"
@@ -144,29 +169,21 @@ $strategies = Strategies::getPublicData();
                             Run
                         </button>
                     </div>
-                    <div class="output-content" id="outputDisplay">Ready to execute...</div>
+                    <div class="panel-body">
+                        <div class="output-content" id="outputDisplay">Ready to execute...</div>
+                    </div>
                 </div>
             </div>
         </main>
     </div>
 
-    <!-- Portfolio Link Script -->
-    <script data-slug="fizzbuzz">
-        (function () {
-            var slug = document.currentScript.getAttribute("data-slug");
-            var link = document.createElement("a");
-            link.href = "https://ajlato.com/projects/" + slug;
-            link.innerHTML = "← Back to Portfolio";
-            link.style.cssText = "position: fixed; bottom: 20px; right: 20px; background: #222; color: #fff; padding: 10px 15px; border-radius: 5px; text-decoration: none; font-family: system-ui, sans-serif; font-size: 14px; z-index: 10000; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: transform 0.2s;";
-            link.onmouseover = function () { link.style.transform = "scale(1.05)"; };
-            link.onmouseout = function () { link.style.transform = "scale(1)"; };
-            document.body.appendChild(link);
-        })();
-    </script>
+    <a class="portfolio-link" href="https://ajlato.com/projects/fizzbuzz">← Back to Portfolio</a>
 
     <!-- Inject strategies data for JavaScript -->
     <script>
-        const STRATEGIES_DATA = <?= json_encode($strategies) ?>;
+        const STRATEGIES_DATA = <?= json_encode($strategies, $jsonFlags) ?>;
+        const ALLOWED_LIMITS = <?= json_encode($allowedLimits, $jsonFlags) ?>;
+        const DEFAULT_LIMIT = <?= (int) $defaultLimit ?>;
     </script>
 
     <!-- Main application script -->
