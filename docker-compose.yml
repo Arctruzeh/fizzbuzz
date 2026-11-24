@@ -1,0 +1,10 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: fizzbuzz_app
+    ports:
+      - "8080:8000"
+    volumes:
+      - .:/var/www/html

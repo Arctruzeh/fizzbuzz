@@ -18,14 +18,26 @@ A high-fidelity "Industrial Assemblage" themed benchmark for FizzBuzz implementa
 
 ## Local Development
 
+### Docker (Recommended)
+
+Requires **Docker Desktop**:
+
+```bash
+./start.sh
+# or:
+docker compose up --build
+```
+
+Then open [http://localhost:8080](http://localhost:8080) in your browser.
+
+### Native PHP
+
 Requires **PHP 8.0+** and **Composer**:
 
 ```bash
 composer install
 php -S localhost:8080
 ```
-
-Then open [http://localhost:8080](http://localhost:8080) in your browser.
 
 ## Demo
 Live Demo: https://ajlato-fizzbuzz.up.railway.app
